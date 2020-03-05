@@ -1,0 +1,122 @@
+apply plugin: 'maven-publish'
+
+project.afterEvaluate {
+    project.ext.buildVariants.all { variant ->
+        String variantName = variant.name.capitalize()
+        // println("variantName=${variantName}") // Release|Debug
+
+        def processManifestTask = project.tasks.getByName("process${variantName}Manifest")
+        // println("processManifestTask=${processManifestTask.name}")
+
+        if (!project.gradle.startParameter.taskNames.toString().contains("publishAar") && !isLibModule) {
+            return
+        }
+
+        processManifestTask.doLast {
+
+            // lib
+            def dirName = variantName.substring(0, 1).toLowerCase().concat(variantName.substring(1))
+            String manifestPath = "${project.rootDir}/${project.name}/build/intermediates/library_manifest/${dirName}/AndroidManifest.xml"
+            // app
+            // manifestPath = "${project.rootDir}/${project.name}/build/intermediates/merged_manifests/${dirName}/AndroidManifest.xml"
+
+            // println("manifestPath=${manifestPath}")
+            // println("manifestPath=$manifestOutputDirectory")
+
+            def manifest = file(manifestPath).getText()
+
+            // if (project.hasProperty("channel")) {
+            def xml = new XmlParser().parseText(manifest)
+
+            def launcherActivityNode = null
+
+            for (Node node : xml.application[0].iterator()) {
+                if (launcherActivityNode != null) break
+                if (node.name() == 'activity' && node.children().size() > 0
+                        && node.children().get(0).name() == 'intent-filter') {
+                    def intentFilterNode = node.children().get(0)
+                    for (Node filterNode : intentFilterNode.iterator()) {
+                        if (filterNode.name() == 'category' && filterNode.attributes().containsValue('android.intent.category.LAUNCHER')) {
+                            launcherActivityNode = node
+                        }
+                    }
+                }
+            }
+            println("launcherActivity=${launcherActivityNode}")
+            if (launcherActivityNode != null) {
+                xml.application[0].remove(launcherActivityNode)
+                def serialize = groovy.xml.XmlUtil.serialize(xml)
+                file(manifestPath).write(serialize)
+            }
+
+            // def channelNo = project.property("channel")
+            // xml.application[0].appendNode("meta-data", ['android:name': 'channel', 'android:value': channelNo])
+            // def serialize = groovy.xml.XmlUtil.serialize(xml)
+            // file(manifestPath).write(serialize)
+            // }
+        }
+    }
+
+    publishing {
+
+        repositories {
+            maven {
+                credentials {
+                    username = "${MAVEN_USER_NAME}"
+                    password = "${MAVEN_PASSWORD}"
+                }
+                url = "${REPO_URL}"
+            }
+        }
+
+        publications {
+
+            mavenJava(MavenPublication) {
+
+                def taskNames = project.gradle.startParameter.taskNames.toString()
+                println("taskNames=${taskNames}")
+                def moduleName = ''
+                def env = ''
+                if (project.hasProperty("publishAar")) {
+                    moduleName = taskNames.split(':')[1]
+                    env = project.property("env")
+                }
+                println(moduleName)
+                println(env)
+
+                if (moduleName.contains("_api")) {
+                    artifactId "${moduleName}"
+                } else {
+                    artifactId "${moduleName}-${env}"
+                }
+                groupId "${GROUP_ID}"
+                version LIBRARY_ARTIFACT_VRESION
+                artifact "${project.rootDir}/${project.name}/build/outputs/aar/${artifactId}-release.aar"
+
+                description "${artifactId} : v${version}" // description
+
+                pom {
+                    withXml {
+                        def dependenciesNode = asNode().appendNode("dependencies")
+                        configurations.implementation.allDependencies.forEach {
+                            println("dependency: ${it.group}, ${it.name}, ${it.version}")
+                            if (it.group != null && it.version != null) {
+                                def dependencyNode = dependenciesNode.appendNode("dependency")
+                                if ("unspecified" == it.version) {
+                                    dependencyNode.appendNode("groupId", groupId)
+                                    dependencyNode.appendNode("artifactId", it.name)
+                                    dependencyNode.appendNode("version", version)
+                                } else {
+                                    dependencyNode.appendNode("groupId", it.group)
+                                    dependencyNode.appendNode("artifactId", it.name)
+                                    dependencyNode.appendNode("version", it.version)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+}

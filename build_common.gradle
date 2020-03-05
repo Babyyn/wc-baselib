@@ -1,0 +1,125 @@
+buildscript {
+    def propertyFile = project.rootProject.file("local.properties")
+    def pureLib = project.name == "baselib" || project.name.contains("_api")
+    def isAppModule = project.name == 'app'
+    def integrate = false
+    if (propertyFile.exists()) {
+        Properties properties = new Properties()
+        properties.load(propertyFile.newDataInputStream())
+
+        integrate = properties.getProperty("integrate", "false").toBoolean()
+    }
+    project.ext.set("isLibModule", (pureLib || integrate) && !isAppModule)
+    project.ext.set("integrate", integrate)
+
+    def envFlavorLib = {
+        prod {
+            dimension = 'env'
+            manifestPlaceholders = [
+                    app_name: 'wc-prod'
+            ]
+        }
+        stag {
+            dimension = 'env'
+            manifestPlaceholders = [
+                    app_name: 'wc-stag'
+            ]
+        }
+    }
+
+    def envFlavorApp = {
+        prod {
+            dimension = 'env'
+            manifestPlaceholders = [
+                    app_name: 'wc-prod'
+            ]
+        }
+        stag {
+            dimension = 'env'
+            applicationId = 'com.ccf.wc.stag'
+            manifestPlaceholders = [
+                    app_name: 'wc-stag'
+            ]
+        }
+    }
+
+    def taskNames = project.gradle.startParameter.taskNames.toString()
+
+    if (project.ext.isLibModule || (taskNames.contains('publishAar'))) {
+        apply plugin: 'com.android.library'
+        project.ext.envFlavors = envFlavorLib
+        project.ext.buildVariants = project.android.libraryVariants
+    } else {
+        apply plugin: 'com.android.application'
+        project.ext.envFlavors = envFlavorApp
+        project.ext.buildVariants = project.android.applicationVariants
+    }
+}
+
+project.ext {
+
+    compileSdkVersion = 29
+    buildToolsVersion = "29.0.2"
+
+    // 编译环境参数配置
+    setCompileConfig = {
+        extension -> // 闭包参数extension相当于android对象
+
+            extension.compileSdkVersion compileSdkVersion
+            extension.buildToolsVersion buildToolsVersion
+
+            extension.defaultConfig {
+                minSdkVersion 21
+                targetSdkVersion 29
+                versionCode 1
+                versionName "1.0"
+            }
+    }
+
+    // Lib module flavor :-> replaced by setEnvFlavors
+    setLibFlavors = {
+        extension ->
+            extension.flavorDimensions "env"
+            extension.productFlavors {
+                prod {
+                    dimension = 'env'
+                    manifestPlaceholders = [
+                            app_name: 'wc-prod'
+                    ]
+                }
+                stag {
+                    dimension = 'env'
+                    manifestPlaceholders = [
+                            app_name: 'wc-stag'
+                    ]
+                }
+            }
+    }
+
+    // App module flavor :-> replaced by setEnvFlavors
+    setAppFlavors = {
+        extension ->
+            extension.flavorDimensions "env"
+            extension.productFlavors {
+                prod {
+                    dimension = 'env'
+                    manifestPlaceholders = [
+                            app_name: 'wc-prod'
+                    ]
+                }
+                stag {
+                    dimension = 'env'
+                    applicationId = 'com.ccf.wc.stag'
+                    manifestPlaceholders = [
+                            app_name: 'wc-stag'
+                    ]
+                }
+            }
+    }
+
+    setEnvFlavors = {
+        extension ->
+            extension.flavorDimensions "env"
+            extension.productFlavors envFlavors
+    }
+}

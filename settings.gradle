@@ -1,0 +1,80 @@
+include ':baselib', ':app'
+rootProject.name='wc-baselib'
+
+//include_with_api(':friend')
+
+def include_with_api(def moduleName) {
+    //获得工程根目录
+    String originDir = project(moduleName).projectDir
+    //制作sdk工程的目录
+    String targetDir = "${originDir}_api"
+    //制作的sdk工程的名字
+    String sdkName = "${project(moduleName).name}_api"
+    System.out.println("-------------------------------------SDK name:" + sdkName)
+    if (!file(targetDir).exists()) {
+        file(targetDir).mkdirs()
+    }
+    //删除掉sdk工程目录除了iml
+    FileTree targetFiles = fileTree(targetDir)
+    targetFiles.exclude "*.iml"
+    targetFiles.exclude "**/build/outputs"
+    targetFiles.each { File file -> file.delete()}
+    //从待制作sdk工程拷贝目录到SDK 之拷贝目录
+    copy {
+        from originDir
+        into targetDir
+        //拷贝文件
+        exclude '**/test/'
+        exclude '**/androidTest/'
+        exclude '**/release/'
+        exclude '**/debug/'
+        exclude '**/build/'
+        exclude '**/res/'
+        include '**/*.api'
+        include '**/AndroidManifest.xml'
+        include 'api.gradle'
+    }
+    //删除空文件夹
+    deleteEmptyDir(new File(targetDir))
+    //读取实现模块的manifest并将package的值后加 .api 作为API工程的manifest package
+    FileTree manifests = fileTree(targetDir).include("**/AndroidManifest.xml")
+    manifests.each { File file ->
+        def parser = new XmlParser().parse(file)
+        def node = parser.attribute('package')
+        parser.attributes().replace('package', "${node}.api")
+        parser.remove(parser.application[0])
+        new XmlNodePrinter(new PrintWriter(file)).print(parser)
+    }
+    //将api.gradle改为build.gradle
+    File build = new File(targetDir + "/api.gradle")
+    if (build.exists()) {
+        build.renameTo(new File(targetDir + "/build.gradle"))
+    }
+
+    // 将.api 文件改为 .java
+    FileTree files = fileTree(targetDir).include("**/*.api")
+    files.each { File file -> file.renameTo(new File(file.absolutePath.replace(".api", ".kt")))
+    }
+    //加入 SDK工程
+    include ":$sdkName"
+}
+
+private void deleteEmptyDir(File dir) {
+    if (dir.isDirectory()) {
+        File[] fs = dir.listFiles()
+        if (fs != null && fs.length > 0) {
+            for (int i = 0; i < fs.length; i++) {
+                File tmpFile = fs[i]
+                if (tmpFile.isDirectory()) {
+                    deleteEmptyDir(tmpFile)
+                }
+                if (tmpFile.isDirectory() && tmpFile.listFiles().length <= 0) {
+                    tmpFile.delete()
+                }
+            }
+        }
+        if (dir.isDirectory() && dir.listFiles().length == 0) {
+            dir.delete()
+        }
+    }
+}

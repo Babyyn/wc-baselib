@@ -1,0 +1,21 @@
+buildscript {
+    def taskNames = project.gradle.startParameter.taskNames.toString().toLowerCase()
+
+    def envStag = "stag"
+    def envProd = "prod"
+    def envFlavor = envStag
+    if (taskNames.contains("prod")) {
+        envFlavor = envProd
+    }
+
+    def buildTypeDebug = "debug"
+    def buildTypeRelease = "release"
+    def buildType = buildTypeDebug
+    if (taskNames.contains("release")) {
+        buildType = buildTypeRelease
+    }
+
+    project.ext.set("envFlavor", envFlavor)
+    project.ext.set("buildType", buildType)
+}
+
