@@ -23,6 +23,9 @@ project.afterEvaluate {
             // println("manifestPath=${manifestPath}")
             // println("manifestPath=$manifestOutputDirectory")
 
+            if (!file(manifestPath).exists()) {
+                return
+            }
             def manifest = file(manifestPath).getText()
 
             // if (project.hasProperty("channel")) {
