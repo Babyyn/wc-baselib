@@ -10,12 +10,13 @@ abstract class BaseApplication : Application() {
 
     private val appModuleClass: MutableList<BaseAppModule> = mutableListOf()
 
+    private var lazyInited = false
+
     override fun onCreate() {
         super.onCreate()
 
         ARouter.openLog()
         ARouter.openDebug()
-
         ARouter.init(this)
 
         initBaseAppModules()
@@ -52,16 +53,33 @@ abstract class BaseApplication : Application() {
 
     abstract fun initBaseAppModules()
 
+    fun lazyInitAfterLaunched() {
+        if (lazyInited) {
+            return
+        }
+        for (module in appModuleClass) {
+            if (module.doNotIncludeWhenLaunch()) {
+                module.onCreate()
+            }
+            module.lazyInitAfterLaunched()
+        }
+        lazyInited = true
+    }
+
     protected fun registerBaseAppModule(clazz: Class<out BaseAppModule>) {
         appModuleClassList.add(clazz)
     }
 
     private fun appModuleOnCreate() {
         for (clazz in appModuleClassList) {
-            var baseAppModule: BaseAppModule = clazz.newInstance()
-            appModuleClass.add(baseAppModule)
-            baseAppModule.application = this
-            baseAppModule.onCreate()
+            val appModule: BaseAppModule = clazz.newInstance()
+            appModuleClass.add(appModule)
+            appModule.application = this
+            if (appModule.doNotIncludeWhenLaunch()) {
+                // skip
+            } else {
+                appModule.onCreate()
+            }
         }
     }
 

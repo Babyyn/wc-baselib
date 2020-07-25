@@ -1,12 +1,21 @@
 package com.ccf.wc.baselib
 
 import android.content.res.Configuration
+import android.util.Log
 
 abstract class BaseAppModule {
 
     lateinit var application: BaseApplication
 
-    abstract fun onCreate()
+    open fun onCreate() {
+        Log.d(this.javaClass.name, "onCreate")
+    }
+
+    open fun lazyInitAfterLaunched() {
+        Log.d(this.javaClass.name, "lazyInitAfterLaunched")
+    }
+
+    open fun doNotIncludeWhenLaunch(): Boolean = false
 
     fun onTerminate() {
     }
